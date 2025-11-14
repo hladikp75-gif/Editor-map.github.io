@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generátor & Konvertor v2.0 (Modulární)</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #2c2c2c;
+            color: #eee;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            gap: 20px;
+        }
+        #controls {
+            flex: 0 0 350px;
+            background-color: #3a3a3a;
+            padding: 20px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            height: fit-content;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        #mapArea {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+        }
+        canvas {
+            background-color: #000;
+            border: 2px solid #555;
+            image-rendering: pixelated; 
+            max-width: 100%;
+        }
+        h1, h2, h3 {
+            font-weight: 400;
+            margin: 0 0 10px 0;
+            border-bottom: 1px solid #555;
+            padding-bottom: 5px;
+        }
+        .control-group { display: flex; flex-direction: column; gap: 10px; }
+        .control-row { display: grid; grid-template-columns: 100px 1fr; align-items: center; gap: 10px; }
+        .slider-row { display: grid; grid-template-columns: 100px 1fr 50px; align-items: center; gap: 10px; }
+        .slider-row .value-input { width: 100%; padding: 4px; text-align: center; font-size: 14px; background: #2c2c2c; color: #eee; border: 1px solid #555; border-radius: 4px; box-sizing: border-box; }
+        label { font-size: 14px; }
+        input[type="number"], input[type="text"] { width: 100%; font-size: 14px; padding: 8px; background: #2c2c2c; color: #eee; border: 1px solid #555; border-radius: 4px; box-sizing: border-box; }
+        input[type="color"] { width: 100%; height: 35px; padding: 2px; border: 1px solid #555; border-radius: 4px; background: #2c2c2c; }
+        input[type="range"] { width: 100%; }
+        button { font-size: 16px; padding: 10px 15px; background-color: #007bff; border: none; color: white; cursor: pointer; border-radius: 5px; width: 100%; }
+        button:hover { background-color: #0056b3; }
+        button.export-btn { background-color: #28a745; }
+        button.export-btn:hover { background-color: #218838; }
+        button.view-btn { background-color: #6c757d; }
+        button.view-btn:hover { background-color: #5a6268; }
+        button.connect-btn { background-color: #ffc107; color: #212529; }
+        button.connect-btn:hover { background-color: #e0a800; }
+        button.remove-btn { background-color: #dc3545; }
+        button.remove-btn:hover { background-color: #c82333; }
+        button.save-settings-btn { background-color: #17a2b8; }
+        button.save-settings-btn:hover { background-color: #138496; }
+        #resourceContainer { display: flex; flex-direction: column; gap: 10px; }
+        .resource-row { display: grid; grid-template-columns: 50px 1fr 1fr 30px; gap: 5px; align-items: center; padding: 5px; background: #4a4a4a; border-radius: 4px; }
+        .resource-row .remove-btn { background-color: #dc3545; font-size: 12px; padding: 5px; width: 30px; }
+        .resource-row .remove-btn:hover { background-color: #a71d2a; }
+        .resource-row label { font-size: 12px; text-align: center; }
+        #cityListContainer { display: flex; flex-direction: column; gap: 8px; padding: 10px; background: #2c2c2c; border-radius: 4px; max-height: 150px; overflow-y: auto; }
+        #cityListContainer div { display: flex; align-items: center; gap: 10px; }
+        #cityListContainer label { font-size: 14px; flex-grow: 1; }
+        #cityListContainer input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; }
+        #actionControls { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 20px; width: 100%; max-width: 800px; justify-content: center; }
+        #actionControls button { width: auto; flex-grow: 1; }
+        #konvertor-controls { background: #222; border: 1px solid #555; padding: 15px; border-radius: 5px; }
+        #finalRenderCanvas { max-width: 100%; border: 2px solid #007bff; }
+    </style>
+    </head>
+<body>
+
+    <div id="controls">
+        <h2>Nastavení Světa</h2>
+        
+        <div class="control-group">
+            <h3>Velikost Mapy (Terén)</h3>
+            <div class="control-row"><label for="mapWidth">Šířka:</label><input type="number" id="mapWidth" value="600" min="10" max="1000"></div>
+            <div class="control-row"><label for="mapHeight">Výška:</label><input type="number" id="mapHeight" value="600" min="10" max="1000"></div>
+            <div class="control-row"><label for="zoom">Zoom šumu:</label><input type="number" id="zoom" value="80" min="10" max="300"></div>
+            <div class="control-row"><label for="seed">Seed:</label><input type="text" id="seed" value="mapa123"></div>
+        </div>
+        
+        <div class="control-group">
+            <h3>Terén</h3>
+            <div class="slider-row"><label for="waterLevel">Voda:</label><input type="range" id="waterLevel" value="0.13" min="0.01" max="0.99" step="0.01"><span id="waterValue" class="value-input" style="background: none; border: none;">0.13</span></div>
+            <div class="slider-row"><label for="mountainLevel">Hory:</label><input type="range" id="mountainLevel" value="0.8" min="0.01" max="0.99" step="0.01"><span id="mountainValue" class="value-input" style="background: none; border: none;">0.8</span></div>
+        </div>
+        
+        <div class="control-group">
+            <h3>Barvy Terénu</h3>
+            <div class="control-row"><label for="colorVoda">Voda:</label><input type="color" id="colorVoda" value="#3498db"></div>
+            <div class="control-row"><label for="colorTrava">Tráva:</label><input type="color" id="colorTrava" value="#2ecc71"></div>
+            <div class="control-row"><label for="colorHory">Hory:</label><input type="color" id="colorHory" value="#7f8c8d"></div>
+        </div>
+        
+        <div class="control-group">
+            <h3>Lesy (na trávě)</h3>
+            <div class="slider-row"><label for="forestFrequency">Frekvence:</label><input type="range" id="forestFrequency" value="0.30" min="0.0" max="1.0" step="0.01"><span id="forestFrequencyValue" class="value-input" style="background: none; border: none;">0.30</span></div>
+            <div class="slider-row"><label for="forestSize">Velikost:</label><input type="range" id="forestSize" value="0.83" min="0.01" max="1.0" step="0.01"><span id="forestSizeValue" class="value-input" style="background: none; border: none;">0.83</span></div>
+            <div class="control-row"><label for="colorLes">Barva lesa:</label><input type="color" id="colorLes" value="#1a5a2a"></div>
+        </div>
+        
+        <div class="control-group">
+            <h3>Zdroje (v horách)</h3>
+            <div id="resourceContainer"></div>
+            <button id="addResourceButton">Přidat zdroj</button>
+        </div>
+        
+        <div class="control-group">
+            <h3>Nastavení Města</h3>
+            <div class="control-row"><label for="maxBlocks">Počet bloků:</label><input type="number" id="maxBlocks" value="50"></div>
+            <div class="control-row"><label for="minSize">Min. vel.:</label><input type="number" id="minSize" value="3"></div>
+            <div class="control-row"><label for="maxSize">Max. vel.:</label><input type="number" id="maxSize" value="10"></div>
+            <div class="control-row"><label for="roadWidth">Šířka silnice:</label><input type="number" id="roadWidth" value="1"></div>
+            <div class="control-row"><label for="blockGap">Mezera:</label><input type="number" id="blockGap" value="1"></div>
+        </div>
+        
+        <div class="control-group">
+            <h3>Kurzor a Nástroje</h3>
+            <div class="slider-row"><label for="cityStartXSlider">Kurzor X:</label><input type="range" id="cityStartXSlider" value="50" min="0" max="600"><input type="number" id="cityStartXInput" value="50" min="0" max="600" class="value-input"></div>
+            <div class="slider-row"><label for="cityStartYSlider">Kurzor Y:</label><input type="range" id="cityStartYSlider" value="50" min="0" max="600"><input type="number" id="cityStartYInput" value="50" min="0" max="600" class="value-input"></div>
+            <button id="setRoadStartButton" class="view-btn" style="font-size: 14px; padding: 8px; margin-top: 10px;">Nastavit Start Cesty</button>
+            <input type="text" id="roadStartDisplay" value="Start: Není nastaven" readonly>
+            <button id="setRoadEndButton" class="view-btn" style="font-size: 14px; padding: 8px;">Nastavit Konec Cesty</button>
+            <input type="text" id="roadEndDisplay" value="Konec: Není nastaven" readonly>
+        </div>
+        
+        <div class="control-group">
+            <h3>Nastavení Cesty</h3>
+            <div id="cityListContainer" style="display: none;"></div>
+            <div class="control-group" style="padding: 10px; background: #2c2c2c; border-radius: 4px; margin-top: 10px;">
+                <div class="slider-row" id="turnPenaltyRow"><label for="turnPenaltySlider">Pokuta (zat.):</label><input type="range" id="turnPenaltySlider" value="10" min="0" max="50" step="0.5"><span id="turnPenaltyValue" class="value-input" style="background: none; border: none;">10</span></div>
+            </div>
+            <button id="createRoadButton" class="connect-btn" style="margin-top: 10px;">Vytvořit Cestu</button>
+        </div>
+
+        <div id="konvertor-controls" class="control-group">
+            <h2>Konvertor & Renderer</h2>
+            <div class="control-group">
+                <label for="tilesetFileInput" style="font-size: 14px;">Tileset Obrázek (.png):</label>
+                <input type="file" id="tilesetFileInput" accept="image/png">
+            </div>
+            <div class="control-row">
+                <label for="tileSize">Velikost dlaždice (px):</label>
+                <input type="number" id="tileSize" value="16">
+            </div>
+            <div class="control-row">
+                <label for="tilesetWidth">Šířka tilesetu (v dlaždicích):</label>
+                <input type="number" id="tilesetWidth" value="20">
+            </div>
+            <button id="runConversionButton" class="connect-btn">Zkonvertovat a Vykreslit Finální Mapu</button>
+        </div>
+
+        <div class="control-group">
+            <h3>Nastavení a Export</h3>
+            <button id="saveSettingsButton" class="save-settings-btn">Uložit nastavení</button>
+            <button id="loadSettingsButton" class="view-btn" style="margin-top: 5px;">Načíst nastavení</button>
+            <hr>
+            <button id="exportSurovyJsonButton" class="export-btn">Exportovat Surový JSON</button>
+            <button id="exportSurovyPngButton" class="view-btn">Zobrazit Surový Obrázek</button>
+            
+            <button id="exportFinalJsonButton" class="export-btn" style="background-color: #0069d9; margin-top: 10px;">Exportovat Finální JSON (pro GDevelop)</button>
+            <button id="exportFinalPngButton" class="export-btn" style="background-color: #17a2b8;">Exportovat Finální PNG</button>
+        </div>
+    </div>
+
+    <div id="mapArea">
+        <h1>Surový náhled (Generátor)</h1>
+        <canvas id="mapCanvas"></canvas>
+        
+        <div id="actionControls">
+            <button id="generateTerrainButton">1. Generovat Terén</button>
+            <button id="addCityButton" class="view-btn">2. Přidat Město</button>
+            <button id="undoCityButton" class="remove-btn">2a. Zpět (poslední krok)</button>
+        </div>
+        
+        <h1 style="margin-top: 20px;">Finální Render (Konvertor)</h1>
+        <canvas id="finalRenderCanvas"></canvas>
+    </div>
+
+    <script type="module" src="5_main.js"></script>
+
+</body>
+</html>
