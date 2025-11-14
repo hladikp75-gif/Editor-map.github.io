@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generátor & Konvertor v3.0 (Sloučeno)</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #2c2c2c;
+            color: #eee;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            gap: 20px;
+        }
+        #controls {
+            flex: 0 0 350px;
+            background-color: #3a3a3a;
+            padding: 20px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            height: fit-content;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        #mapArea {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+        }
+        canvas {
+            background-color: #000;
+            border: 2px solid #555;
+            image-rendering: pixelated; 
+            max-width: 100%;
+        }
+        h1, h2, h3 {
+            font-weight: 400;
+            margin: 0 0 10px 0;
+            border-bottom: 1px solid #555;
+            padding-bottom: 5px;
+        }
+        .control-group { display: flex; flex-direction: column; gap: 10px; }
+        .control-row { display: grid; grid-template-columns: 100px 1fr; align-items: center; gap: 10px; }
+        .slider-row { display: grid; grid-template-columns: 100px 1fr 50px; align-items: center; gap: 10px; }
+        .slider-row .value-input { width: 100%; padding: 4px; text-align: center; font-size: 14px; background: #2c2c2c; color: #eee; border: 1px solid #555; border-radius: 4px; box-sizing: border-box; }
+        label { font-size: 14px; }
+        input[type="number"], input[type="text"] { width: 100%; font-size: 14px; padding: 8px; background: #2c2c2c; color: #eee; border: 1px solid #555; border-radius: 4px; box-sizing: border-box; }
+        input[type="color"] { width: 100%; height: 35px; padding: 2px; border: 1px solid #555; border-radius: 4px; background: #2c2c2c; }
+        input[type="range"] { width: 100%; }
+        button { font-size: 16px; padding: 10px 15px; background-color: #007bff; border: none; color: white; cursor: pointer; border-radius: 5px; width: 100%; }
+        button:hover { background-color: #0056b3; }
+        button.export-btn { background-color: #28a745; }
+        button.export-btn:hover { background-color: #218838; }
+        button.view-btn { background-color: #6c757d; }
+        button.view-btn:hover { background-color: #5a6268; }
+        button.connect-btn { background-color: #ffc107; color: #212529; }
+        button.connect-btn:hover { background-color: #e0a800; }
+        button.remove-btn { background-color: #dc3545; }
+        button.remove-btn:hover { background-color: #c82333; }
+        button.save-settings-btn { background-color: #17a2b8; }
+        button.save-settings-btn:hover { background-color: #138496; }
+        #resourceContainer { display: flex; flex-direction: column; gap: 10px; }
+        .resource-row { display: grid; grid-template-columns: 50px 1fr 1fr 30px; gap: 5px; align-items: center; padding: 5px; background: #4a4a4a; border-radius: 4px; }
+        .resource-row .remove-btn { background-color: #dc3545; font-size: 12px; padding: 5px; width: 30px; }
+        .resource-row .remove-btn:hover { background-color: #a71d2a; }
+        .resource-row label { font-size: 12px; text-align: center; }
+        #cityListContainer { display: flex; flex-direction: column; gap: 8px; padding: 10px; background: #2c2c2c; border-radius: 4px; max-height: 150px; overflow-y: auto; }
+        #cityListContainer div { display: flex; align-items: center; gap: 10px; }
+        #cityListContainer label { font-size: 14px; flex-grow: 1; }
+        #cityListContainer input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; }
+        #actionControls { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 20px; width: 100%; max-width: 800px; justify-content: center; }
+        #actionControls button { width: auto; flex-grow: 1; }
+        #konvertor-controls { background: #222; border: 1px solid #555; padding: 15px; border-radius: 5px; }
+        #finalRenderCanvas { max-width: 100%; border: 2px solid #007bff; }
+    </style>
+    </head>
+<body>
+
+    <div id="controls">
+        <h2>Nastavení Světa</h2>
+        
+        <div class="control-group">
+            <h3>Velikost Mapy (Terén)</h3>
+            <div class="control-row"><label for="mapWidth">Šířka:</label><input type="number" id="mapWidth" value="600" min="10" max="1000"></div>
+            <div class="control-row"><label for="mapHeight">Výška:</label><input type="number" id="mapHeight" value="600" min="10" max="1000"></div>
+            <div class="control-row"><label for="zoom">Zoom šumu:</label><input type="number" id="zoom" value="80" min="10" max="300"></div>
+            <div class="control-row"><label for="seed">Seed:</label><input type="text" id="seed" value="mapa123"></div>
+        </div>
+        
+        <div class="control-group">
+            <h3>Terén</h3>
+            <div class="slider-row"><label for="waterLevel">Voda:</label><input type="range" id="waterLevel" value="0.13" min="0.01" max="0.99" step="0.01"><span id="waterValue" class="value-input" style="background: none; border: none;">0.13</span></div>
+            <div class="slider-row"><label for="mountainLevel">Hory:</label><input type="range" id="mountainLevel" value="0.8" min="0.01" max="0.99" step="0.01"><span id="mountainValue" class="value-input" style="background: none; border: none;">0.8</span></div>
+        </div>
+        
+        <div class="control-group">
+            <h3>Barvy Terénu</h3>
+            <div class="control-row"><label for="colorVoda">Voda:</label><input type="color" id="colorVoda" value="#3498db"></div>
+            <div class="control-row"><label for="colorTrava">Tráva:</label><input type="color" id="colorTrava" value="#2ecc71"></div>
+            <div class="control-row"><label for="colorHory">Hory:</label><input type="color" id="colorHory" value="#7f8c8d"></div>
+        </div>
+        
+        <div class="control-group">
+            <h3>Lesy (na trávě)</h3>
+            <div class="slider-row"><label for="forestFrequency">Frekvence:</label><input type="range" id="forestFrequency" value="0.30" min="0.0" max="1.0" step="0.01"><span id="forestFrequencyValue" class="value-input" style="background: none; border: none;">0.30</span></div>
+            <div class="slider-row"><label for="forestSize">Velikost:</label><input type="range" id="forestSize" value="0.83" min="0.01" max="1.0" step="0.01"><span id="forestSizeValue" class="value-input" style="background: none; border: none;">0.83</span></div>
+            <div class="control-row"><label for="colorLes">Barva lesa:</label><input type="color" id="colorLes" value="#1a5a2a"></div>
+        </div>
+        
+        <div class="control-group">
+            <h3>Zdroje (v horách)</h3>
+            <div id="resourceContainer"></div>
+            <button id="addResourceButton">Přidat zdroj</button>
+        </div>
+        
+        <div class="control-group">
+            <h3>Nastavení Města</h3>
+            <div class="control-row"><label for="maxBlocks">Počet bloků:</label><input type="number" id="maxBlocks" value="50"></div>
+            <div class="control-row"><label for="minSize">Min. vel.:</label><input type="number" id="minSize" value="3"></div>
+            <div class="control-row"><label for="maxSize">Max. vel.:</label><input type="number" id="maxSize" value="10"></div>
+            <div class="control-row"><label for="roadWidth">Šířka silnice:</label><input type="number" id="roadWidth" value="1"></div>
+            <div class="control-row"><label for="blockGap">Mezera:</label><input type="number" id="blockGap" value="1"></div>
+        </div>
+        
+        <div class="control-group">
+            <h3>Kurzor a Nástroje</h3>
+            <div class="slider-row"><label for="cityStartXSlider">Kurzor X:</label><input type="range" id="cityStartXSlider" value="50" min="0" max="600"><input type="number" id="cityStartXInput" value="50" min="0" max="600" class="value-input"></div>
+            <div class="slider-row"><label for="cityStartYSlider">Kurzor Y:</label><input type="range" id="cityStartYSlider" value="50" min="0" max="600"><input type="number" id="cityStartYInput" value="50" min="0" max="600" class="value-input"></div>
+            <button id="setRoadStartButton" class="view-btn" style="font-size: 14px; padding: 8px; margin-top: 10px;">Nastavit Start Cesty</button>
+            <input type="text" id="roadStartDisplay" value="Start: Není nastaven" readonly>
+            <button id="setRoadEndButton" class="view-btn" style="font-size: 14px; padding: 8px;">Nastavit Konec Cesty</button>
+            <input type="text" id="roadEndDisplay" value="Konec: Není nastaven" readonly>
+        </div>
+        
+        <div class="control-group">
+            <h3>Nastavení Cesty</h3>
+            <div id="cityListContainer" style="display: none;"></div>
+            <div class="control-group" style="padding: 10px; background: #2c2c2c; border-radius: 4px; margin-top: 10px;">
+                <div class="slider-row" id="turnPenaltyRow"><label for="turnPenaltySlider">Pokuta (zat.):</label><input type="range" id="turnPenaltySlider" value="10" min="0" max="50" step="0.5"><span id="turnPenaltyValue" class="value-input" style="background: none; border: none;">10</span></div>
+            </div>
+            <button id="createRoadButton" class="connect-btn" style="margin-top: 10px;">Vytvořit Cestu</button>
+        </div>
+
+        <div id="konvertor-controls" class="control-group">
+            <h2>Konvertor & Renderer</h2>
+            <div class="control-group">
+                <label for="tilesetFileInput" style="font-size: 14px;">Tileset Obrázek (.png):</label>
+                <input type="file" id="tilesetFileInput" accept="image/png">
+            </div>
+            <div class="control-row">
+                <label for="tileSize">Velikost dlaždice (px):</label>
+                <input type="number" id="tileSize" value="16">
+            </div>
+            <div class="control-row">
+                <label for="tilesetWidth">Šířka tilesetu (v dlaždicích):</label>
+                <input type="number" id="tilesetWidth" value="20">
+            </div>
+            <button id="runConversionButton" class="connect-btn">Zkonvertovat a Vykreslit Finální Mapu</button>
+        </div>
+
+        <div class="control-group">
+            <h3>Nastavení a Export</h3>
+            <button id="saveSettingsButton" class="save-settings-btn">Uložit nastavení</button>
+            <button id="loadSettingsButton" class="view-btn" style="margin-top: 5px;">Načíst nastavení</button>
+            <hr>
+            <button id="exportSurovyJsonButton" class="export-btn">Exportovat Surový JSON</button>
+            <button id="exportSurovyPngButton" class="view-btn">Zobrazit Surový Obrázek</button>
+            
+            <button id="exportFinalJsonButton" class="export-btn" style="background-color: #0069d9; margin-top: 10px;">Exportovat Finální JSON (pro GDevelop)</button>
+            <button id="exportFinalPngButton" class="export-btn" style="background-color: #17a2b8;">Exportovat Finální PNG</button>
+        </div>
+    </div>
+
+    <div id="mapArea">
+        <h1>Surový náhled (Generátor)</h1>
+        <canvas id="mapCanvas"></canvas>
+        
+        <div id="actionControls">
+            <button id="generateTerrainButton">1. Generovat Terén</button>
+            <button id="addCityButton" class="view-btn">2. Přidat Město</button>
+            <button id="undoCityButton" class="remove-btn">2a. Zpět (poslední krok)</button>
+        </div>
+        
+        <h1 style="margin-top: 20px;">Finální Render (Konvertor)</h1>
+        <canvas id="finalRenderCanvas"></canvas>
+    </div>
+
+    <script type="module">
+        // Importujeme POUZE externí knihovnu
+        import { createNoise2D } from 'https://cdn.jsdelivr.net/npm/simplex-noise@4.0.1/dist/esm/simplex-noise.js';
+        
+        // ==========================================
+        // SOUBOR 1: 1_config.js
+        // ==========================================
+        
+        // --- 1. DEFINICE TERÉNŮ (SUROVÁ ID) ---
+        const ZEME_SUROVE = 1;
+        const VODA_SUROVE = 0;
+        const HORY_SUROVE = 2;
+        const LES_SUROVE = 3;
+        const CESTA_SUROVE = 100;
+        const MESTSKA_CESTA_SUROVE = 105;
+        const PARK_SUROVE = 120;
+        const BUDOUCI_OVERLAYE = [];
+        const TEREN_MIMO_MAPU = ZEME_SUROVE;
+
+        // --- 2. ID PRO FINÁLNÍ MAPU ---
+        const ID_PLNA_ZEM = 22;
+        const ID_PLNA_VODA = 19;
+        const ID_PLNA_HORA = 55;
+        const ID_PLNA_LES = 557;
+        const ID_PLNA_CESTA = 101;
+        const ID_PLNA_MESTSKA_CESTA = 105;
+        const ID_PLNA_PARK = 400;
+        
+        // Barvy Města (pro surový náhled generátoru)
+        const COLOR_ROAD = '#404040';
+        const COLOR_PARK = '#27ae60';
+
+        // ==========================================
+        // SOUBOR 2: 2_logika_masek.js
+        // ==========================================
+
+        function getNeighbor_Standard(x, y, data, width, height, fallbackID) {
+            if (y < 0 || y >= height || x < 0 || x >= width) {
+                return fallbackID;
+            }
+            return data[y][x];
+        }
+        
+        function getNeighbor_pro_Zem(x, y, data, width, height) {
+            if (y < 0 || y >= height || x < 0 || x >= width) {
+                return TEREN_MIMO_MAPU;
+            }
+            const suroveID_souseda = data[y][x];
+            if (suroveID_souseda === LES_SUROVE || 
+                suroveID_souseda === CESTA_SUROVE || 
+                suroveID_souseda === MESTSKA_CESTA_SUROVE || 
+                suroveID_souseda === PARK_SUROVE ||
+                BUDOUCI_OVERLAYE.includes(suroveID_souseda)) 
+            {
+                return ZEME_SUROVE;
+            }
+            return suroveID_souseda;
+        }
+
+        function calculateMask_pro_Zem(x, y, data, width, height) {
+            let maska_HORY = 0;
+            let maska_VODA = 0;
+            const bits = [1, 2, 4, 8, 16, 32, 64, 128];
+            const coords = [[0, -1], [-1, -1], [-1, 0], [-1, 1], [0, 1], [1, 1], [1, 0], [1, -1]];
+            for (let i = 0; i < 8; i++) {
+                const nx = x + coords[i][0];
+                const ny = y + coords[i][1];
+                const sousedID = getNeighbor_pro_Zem(nx, ny, data, width, height); 
+                if (sousedID === HORY_SUROVE) maska_HORY += bits[i];
+                else if (sousedID === VODA_SUROVE) maska_VODA += bits[i];
+            }
+            return { hory: maska_HORY, voda: maska_VODA };
+        }
+        
+        function calculateMask_pro_Overlay(x, y, data, width, height, targetID) {
+            let maskValue = 0;
+            const bits = [1, 2, 4, 8, 16, 32, 64, 128];
+            const coords = [[0, -1], [-1, -1], [-1, 0], [-1, 1], [0, 1], [1, 1], [1, 0], [1, -1]];
+            for (let i = 0; i < 8; i++) {
+                const nx = x + coords[i][0];
+                const ny = y + coords[i][1];
+                if (getNeighbor_Standard(nx, ny, data, width, height, targetID) === targetID) {
+                    maskValue += bits[i];
+                }
+            }
+            return maskValue;
+        }
+
+        function calculateMask_Distance(x, y, data, width, height, targetID, step) {
+            let maskValue = 0;
+            const bits = [1, 2, 4, 8, 16, 32, 64, 128];
+            const coords = [[0, -1], [-1, -1], [-1, 0], [-1, 1], [0, 1], [1, 1], [1, 0], [1, -1]];
+            for (let i = 0; i < 8; i++) {
+                const nx = x + (coords[i][0] * step);
+                const ny = y + (coords[i][1] * step);
+                if (getNeighbor_Standard(nx, ny, data, width, height, -1) === targetID) {
+                    maskValue += bits[i];
+                }
+            }
+            return maskValue;
+        }
+
+        // ==========================================
+        // SOUBOR 3: 3_slovniky.js
+        // ==========================================
+
+        function mapMaskToTileID_Voda(maska) {
+            switch (maska) {
+                case 0: return ID_PLNA_ZEM; 
+                case 3: case 129: case 131: case 1: return 25;
+                case 48: case 24: case 56: case 16: return 13;
+                case 224: case 192: case 96: case 64: return 18;
+                case 14: case 12: case 6: case 4: return 20;
+                case 143: case 135: case 7: case 15: return 1;
+                case 195: case 227: case 193: case 225: return 2;
+                case 62: case 60: case 28: case 30: return 7;
+                case 248: case 120: case 112: case 240: return 8;
+                case 32: return 12;
+                case 8: return 14;
+                case 2: return 26;
+                case 128: return 24;
+                default: return 1; 
+            }
+        }
+        function mapMaskToTileID_Hory(maska) {
+             switch (maska) {
+                case 3: case 129: case 131: case 1: return 61;
+                case 48: case 24: case 56: case 16: return 49;
+                case 224: case 192: case 96: case 64: return 54;
+                case 14: case 12: case 6: case 4: return 56;
+                case 143: case 135: case 7: case 15: return 37;
+                case 195: case 227: case 193: case 225: return 38;
+                case 62: case 60: case 28: case 30: return 43;
+                case 248: case 120: case 112: case 240: return 44;
+                case 32: return 48;
+                case 8: return 50;
+                case 2: return 62;
+                case 128: return 60;
+                default: return 1;
+            }
+        }
+        function mapMaskToTileID_Cesta(maska) {
+            switch (maska) {
+                case 252: case 126: case 124: case 254: return 504;
+                case 207: case 231: case 199: case 239: return 512;
+                case 31: case 63: case 159: case 191: return 535; // Opraveno
+                case 241: case 243: case 249: case 251: return 534; // Opraveno
+                case 112: case 120: case 248: case 240: return 538;
+                case 60: case 28: case 62: case 30: return 507;
+                case 193: case 195: case 227: case 225: return 524;
+                case 7: case 135: case 143: case 15: return 545;
+                case 223: return 547;
+                case 247: return 514;
+                case 253: return 536;
+                case 127: return 517;
+            }
+            return ID_PLNA_CESTA;
+        }
+        function mapMaskToTileID_Les(maska) {
+             switch (maska) {
+                case 252: case 126: case 124: case 254: return 549;
+                case 207: case 231: case 199: case 239: return 565;
+                case 31: case 63: case 159: case 191: return 558;
+                case 241: case 243: case 249: case 251: return 556;
+                case 112: case 120: case 248: case 240: return 548;
+                case 60: case 28: case 62: case 30: return 550;
+                case 193: case 195: case 227: case 225: return 564;
+                case 7: case 135: case 143: case 15: return 566;
+                case 223: return 557;
+                case 247: return 557;
+                case 253: return 557;
+                case 127: return 557;
+            }
+            return ID_PLNA_LES;
+        }
+        function mapMaskToTileID_CestaVnitrni(maska) {
+            switch (maska) {
+                case 3: case 129: case 131: case 1: return 504; 
+                case 48: case 24: case 56: case 16: return 512; 
+                case 224: case 192: case 96: case 64: return 535; 
+                case 14: case 12: case 6: case 4: return 534; 
+                case 32: return 547;
+                case 8: return 514;
+                case 2: return 536;
+                case 128: return 517;
+            }
+            return 600; // Fallback
+        }
+        function mapMaskToTileID_CestaVnejsi(maska) {
+            switch (maska) {
+                case 3: case 129: case 131: case 1: return 512; 
+                case 48: case 24: case 56: case 16: return 504; 
+                case 224: case 192: case 96: case 64: return 535; // Opraveno
+                case 14: case 12: case 6: case 4: return 534; // Opraveno
+                case 32: return 538;
+                case 8: return 507;
+                case 2: return 545;
+                case 128: return 524;
+            }
+            return 700; // Fallback
+        }
+        
+        // ==========================================
+        // SOUBOR 4: 4_renderer.js
+        // ==========================================
+        
+        function renderMap(finalMapData, tilesetImage, canvas, tileSize, tilesetWidthInTiles) {
+            const mapHeight = finalMapData.length;
+            const mapWidth = finalMapData[0].length;
+            
+            if (mapHeight === 0 || mapWidth === 0) {
+                console.error("Data mapy jsou prázdná, nelze vykreslit.");
+                return;
+            }
+            
+            canvas.width = mapWidth * tileSize;
+            canvas.height = mapHeight * tileSize;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height); 
+
+            console.log(`Vykresluji finální mapu ${mapWidth}x${mapHeight}...`);
+
+            for (let y = 0; y < mapHeight; y++) {
+                for (let x = 0; x < mapWidth; x++) {
+                    const tileID = finalMapData[y][x];
+                    const sourceX = (tileID % tilesetWidthInTiles) * tileSize;
+                    const sourceY = Math.floor(tileID / tilesetWidthInTiles) * tileSize;
+                    const destX = x * tileSize;
+                    const destY = y * tileSize;
+
+                    ctx.drawImage(
+                        tilesetImage,
+                        sourceX, sourceY, tileSize, tileSize,
+                        destX, destY, tileSize, tileSize
+                    );
+                }
+            }
+            console.log("Finální mapa vykreslena!");
+        }
+
+        // ==========================================
+        // SOUBOR 5: 5_main.js
+        // ==========================================
+        
+        // --- Globální proměnné (již definovány nahoře) ---
+        // currentMapData, currentTileKey, atd.
+
+        // --- Získání prvků z HTML (již definovány nahoře) ---
+        // canvas, finalRenderCanvas, atd.
+
+        // --- Logika Generátoru ---
+        
+        function drawCombinedMap(grid, tileKey, width, height) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const tileID = grid[y][x];
+                    const color = tileKey[tileID] || '#FF00FF'; 
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                }
+            }
+            const markerX = parseInt(cityStartXInput.value);
+            const markerY = parseInt(cityStartYInput.value);
+            const drawX = (markerX * TILE_SIZE);
+            const drawY = (markerY * TILE_SIZE);
+            const markerPixelSize = (TILE_SIZE * 3);
+            const finalX = drawX - TILE_SIZE;
+            const finalY = drawY - TILE_SIZE;
+            ctx.strokeStyle = '#FF0000'; 
+            ctx.lineWidth = 2; 
+            ctx.strokeRect(finalX, finalY, markerPixelSize, markerPixelSize);
+        }
+
+        function redrawMapWithMarker() {
+            if (currentMapData.length === 0) return; 
+            drawCombinedMap(currentMapData, currentTileKey, currentMapWidth, currentMapHeight);
+        }
+        
+        function updateCityListUI(cities) {
+            cityListContainer.innerHTML = ''; 
+            if (cities.length === 0) {
+                cityListContainer.innerHTML = '<span style="font-size: 12px; text-align: center;">Manuální propojování aktivní</span>';
+                return;
+            }
+        }
+
+        function generateTerrain() {
+            console.log("Krok 1: Generuji terén mapy...");
+            const MAP_WIDTH = parseInt(widthInput.value);
+            const MAP_HEIGHT = parseInt(heightInput.value);
+            
+            cityStartXSlider.max = MAP_WIDTH - 1;
+            cityStartXInput.max = MAP_WIDTH - 1;
+            cityStartYSlider.max = MAP_HEIGHT - 1;
+            cityStartYInput.max = MAP_HEIGHT - 1;
+            if (parseInt(cityStartXInput.value) >= MAP_WIDTH) {
+                cityStartXInput.value = MAP_WIDTH - 1;
+                cityStartXSlider.value = MAP_WIDTH - 1;
+            }
+            if (parseInt(cityStartYInput.value) >= MAP_HEIGHT) {
+                cityStartYInput.value = MAP_HEIGHT - 1;
+                cityStartYSlider.value = MAP_HEIGHT - 1;
+            }
+            
+            canvas.width = MAP_WIDTH * TILE_SIZE;
+            canvas.height = MAP_HEIGHT * TILE_SIZE;
+
+            const zoom = parseFloat(zoomInput.value);
+            const seed = seedInput.value;
+
+            const BARVY = {
+                VODA: colorVodaInput.value,
+                TRAVA: colorTravaInput.value,
+                HORY: colorHoryInput.value,
+                LES: colorLesInput.value 
+            };
+
+            const waterThreshold = Math.min(parseFloat(waterLevelSlider.value), parseFloat(mountainLevelSlider.value));
+            const mountainThreshold = Math.max(parseFloat(waterLevelSlider.value), parseFloat(mountainLevelSlider.value));
+
+            const forestFrequency = parseFloat(forestFrequencySlider.value);
+            const forestSize = parseFloat(forestSizeSlider.value);
+
+            let terrainData = []; 
+            let tileKey = {
+                [VODA_SUROVE]: BARVY.VODA,
+                [ZEME_SUROVE]: BARVY.TRAVA,
+                [HORY_SUROVE]: BARVY.HORY,
+                [LES_SUROVE]: BARVY.LES,
+                [CESTA_SUROVE]: COLOR_ROAD,
+                [MESTSKA_CESTA_SUROVE]: COLOR_ROAD, 
+                [PARK_SUROVE]: COLOR_PARK
+            };
+            
+            const zdroje = [];
+            let resourceIdCounter = 4; 
+
+            document.querySelectorAll('#resourceContainer .resource-row').forEach(row => {
+                const color = row.querySelector('input[type="color"]').value;
+                const min = parseFloat(row.querySelector('.res-min').value);
+                const max = parseFloat(row.querySelector('.res-max').value);
+                const resourceId = resourceIdCounter++;
+                zdroje.push({ barva: color, prahMin: Math.min(min, max), prahMax: Math.max(min, max), id: resourceId });
+                tileKey[resourceId] = color;
+            });
+            
+            const seededRandom = createSeed(seed);
+            const noiseGeneratorVyska = createNoise2D(seededRandom);
+            const noiseGeneratorSuroviny = createNoise2D(seededRandom);
+            const noiseGeneratorLesy = createNoise2D(seededRandom); 
+
+            for (let y = 0; y < MAP_HEIGHT; y++) {
+                let mapRow = [];
+                for (let x = 0; x < MAP_WIDTH; x++) {
+                    const noiseX = x / zoom;
+                    const noiseY = y / zoom;
+                    let hodnotaVysky = (noiseGeneratorVyska(noiseX, noiseY) + 1) / 2;
+                    let tileID;
+                    if (hodnotaVysky < waterThreshold) {
+                        tileID = VODA_SUROVE;
+                    } else if (hodnotaVysky < mountainThreshold) {
+                        tileID = ZEME_SUROVE;
+                    } else {
+                        tileID = HORY_SUROVE;
+                        const hodnotaSurovin = (noiseGeneratorSuroviny(noiseX * 1.8, noiseY * 1.8) + 1) / 2;
+                        for (const zdroj of zdroje) {
+                            if (hodnotaSurovin >= zdroj.prahMin && hodnotaSurovin <= zdroj.prahMax) {
+                                tileID = zdroj.id;
+                                break;
+                            }
+                        }
+                    }
+                    mapRow.push(tileID);
+                }
+                terrainData.push(mapRow);
+            }
+
+            let finalMapWithForests = terrainData.map(row => [...row]); 
+            for (let y = 0; y < MAP_HEIGHT; y++) {
+                for (let x = 0; x < MAP_WIDTH; x++) {
+                    const suroveID = getTile(terrainData, x, y); 
+                    if (suroveID !== ZEME_SUROVE) continue;
+                    let hasBlockingNeighbor = false;
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            if (dx === 0 && dy === 0) continue;
+                            const neighborID = getTile(terrainData, x + dx, y + dy); 
+                            if (neighborID === VODA_SUROVE || neighborID === HORY_SUROVE) {
+                                hasBlockingNeighbor = true;
+                                break;
+                            }
+                        }
+                        if (hasBlockingNeighbor) break;
+                    }
+                    if (!hasBlockingNeighbor) {
+                        const noiseXLes = x / (zoom * forestSize);
+                        const noiseYLes = y / (zoom * forestSize);
+                        const hodnotaLesu = (noiseGeneratorLesy(noiseXLes, noiseYLes) + 1) / 2;
+                        if (hodnotaLesu > (1 - forestFrequency)) {
+                            finalMapWithForests[y][x] = LES_SUROVE; 
+                        }
+                    }
+                }
+            }
+            
+            cityIdCounter = 1; 
+            mapHistoryStack = [];
+            const newCitiesList = [];
+            mapHistoryStack.push({
+                map: finalMapWithForests.map(row => [...row]), 
+                cities: newCitiesList
+            }); 
+            currentMapData = mapHistoryStack[0].map;
+            currentTileKey = tileKey;
+            currentMapWidth = MAP_WIDTH;
+            currentMapHeight = MAP_HEIGHT;
+            drawCombinedMap(currentMapData, currentTileKey, currentMapWidth, currentMapHeight);
+            updateCityListUI(newCitiesList);
+            console.log("Terén vykreslen.");
+        }
+
+        function addCity() {
+            if (mapHistoryStack.length === 0) { alert("Nejprve musíte vygenerovat terén! (Tlačítko 1)"); return; }
+            const lastState = mapHistoryStack[mapHistoryStack.length - 1];
+            const newMapState = lastState.map.map(row => [...row]);
+            const newCitiesList = [...lastState.cities]; 
+            const MAX_BLOCKS = parseInt(maxBlocksInput.value);
+            const ROAD_WIDTH = parseInt(roadWidthInput.value);
+            const BLOCK_GAP = parseInt(blockGapInput.value);
+            const MIN_SIZE = parseInt(minSizeInput.value);
+            const MAX_SIZE = parseInt(maxSizeInput.value);
+            const cityStartX = parseInt(cityStartXInput.value); 
+            const cityStartY = parseInt(cityStartYInput.value); 
+            let agents = [];
+            const startInnerW = randomInt(MIN_SIZE, MAX_SIZE);
+            const startInnerH = randomInt(MIN_SIZE, MAX_SIZE);
+            const startTotalW = startInnerW + (ROAD_WIDTH * 2);
+            const startTotalH = startInnerH + (ROAD_WIDTH * 2);
+            const startX = cityStartX - Math.floor(startTotalW / 2);
+            const startY = cityStartY - Math.floor(startTotalH / 2);
+            let blocksBuilt = 0;
+            if (isAreaClearForCity(newMapState, startX, startY, startTotalW, startTotalH)) {
+                drawBlockOnMap(newMapState, startX, startY, startTotalW, startTotalH, ROAD_WIDTH);
+                blocksBuilt++;
+                agents.push(new CityPlanner(startX + Math.floor(startTotalW / 2), startY, 0)); 
+                agents.push(new CityPlanner(startX + startTotalW - 1, startY + Math.floor(startTotalH / 2), 1)); 
+                agents.push(new CityPlanner(startX + Math.floor(startTotalW / 2), startY + startTotalH - 1, 2));
+                agents.push(new CityPlanner(startX, startY + Math.floor(startTotalH / 2), 3));
+            } else {
+                alert("Startovní bod města (Start X/Y) není na trávě ani v lese! Vyberte jiné souřadnice.");
+                redrawMapWithMarker(); 
+                return; 
+            }
+            while (blocksBuilt < MAX_BLOCKS && agents.length > 0) {
+                const agentIndex = randomInt(0, agents.length - 1);
+                const agent = agents[agentIndex];
+                if (agent.planBlock(newMapState, agents, MIN_SIZE, MAX_SIZE, ROAD_WIDTH, BLOCK_GAP)) {
+                    blocksBuilt++;
+                }
+                agents.splice(agentIndex, 1);
+            }
+            const newCity = { id: cityIdCounter++, name: `Město ${cityIdCounter - 1}`, x: cityStartX, y: cityStartY };
+            newCitiesList.push(newCity);
+            mapHistoryStack.push({ map: newMapState, cities: newCitiesList });
+            currentMapData = newMapState;
+            drawCombinedMap(currentMapData, currentTileKey, currentMapWidth, currentMapHeight);
+            updateCityListUI(newCitiesList);
+        }
+
+        function createRoad() {
+            if (mapHistoryStack.length === 0) { alert("Nejprve vygenerujte terén."); return; }
+            if (!roadStartPoint || !roadEndPoint) { alert("Musíte nejprve nastavit Start i Konec cesty pomocí kurzoru!"); return; }
+            const city1 = roadStartPoint;
+            const city2 = roadEndPoint;
+            const lastState = mapHistoryStack[mapHistoryStack.length - 1];
+            const newMapState = lastState.map.map(row => [...row]);
+            const idealPath = findPath_Dynamic(newMapState, city1, city2, heuristic_euclidean, 0);
+            if (idealPath === null) { alert("Cestu mezi body se nepodařilo najít."); return; }
+            const waypoints = [city1];
+            const L = idealPath.length;
+            waypoints.push({ x: idealPath[Math.floor(L * 0.2)][0], y: idealPath[Math.floor(L * 0.2)][1] });
+            waypoints.push({ x: idealPath[Math.floor(L * 0.4)][0], y: idealPath[Math.floor(L * 0.4)][1] });
+            waypoints.push({ x: idealPath[Math.floor(L * 0.6)][0], y: idealPath[Math.floor(L * 0.6)][1] });
+            waypoints.push({ x: idealPath[Math.floor(L * 0.8)][0], y: idealPath[Math.floor(L * 0.8)][1] });
+            waypoints.push(city2); 
+            const finalPath = [];
+            const turnPenalty = parseFloat(turnPenaltySlider.value);
+            for (let i = 0; i < waypoints.length - 1; i++) {
+                const segment = findPath_Dynamic(newMapState, waypoints[i], waypoints[i+1], heuristic_manhattan, turnPenalty);
+                if (segment === null) {
+                    alert(`Chyba: Cesta byla blokována při propojování segmentu ${i + 1}.`);
+                    return; 
+                }
+                finalPath.push(...(i === 0 ? segment : segment.slice(1)));
+            }
+            let startIndex = 0;
+            for (let i = 0; i < finalPath.length; i++) {
+                const [x, y] = finalPath[i];
+                if (x < 0 || x >= currentMapWidth || y < 0 || y >= currentMapHeight) continue;
+                const tile = newMapState[y][x];
+                if (tile !== MESTSKA_CESTA_SUROVE && tile !== PARK_SUROVE) {
+                    startIndex = i;
+                    break;
+                }
+            }
+            let endIndex = finalPath.length - 1;
+            for (let i = finalPath.length - 1; i >= 0; i--) {
+                const [x, y] = finalPath[i];
+                if (x < 0 || x >= currentMapWidth || y < 0 || y >= currentMapHeight) continue;
+                const tile = newMapState[y][x];
+                if (tile !== MESTSKA_CESTA_SUROVE && tile !== PARK_SUROVE) {
+                    endIndex = i;
+                    break;
+                }
+            }
+            const clippedPath = finalPath.slice(startIndex, endIndex + 1);
+            clippedPath.forEach(pos => {
+                const [x, y] = pos;
+                const brushPoints = [ [x, y], [x + 1, y], [x, y + 1], [x + 1, y + 1] ];
+                for (const [px, py] of brushPoints) {
+                    if (px >= 0 && px < currentMapWidth && py >= 0 && py < currentMapHeight) {
+                        newMapState[py][px] = CESTA_SUROVE;
+                    }
+                }
+            });
+            mapHistoryStack.push({ map: newMapState, cities: lastState.cities });
+            currentMapData = newMapState;
+            redrawMapWithMarker();
+            roadStartPoint = null;
+            roadEndPoint = null;
+            roadStartDisplay.value = "Start: Není nastaven";
+            roadEndDisplay.value = "Konec: Není nastaven";
+        }
+
+        function undoCity() {
+            if (mapHistoryStack.length <= 1) { return; }
+            mapHistoryStack.pop();
+            const currentState = mapHistoryStack[mapHistoryStack.length - 1];
+            currentMapData = currentState.map;
+            redrawMapWithMarker();
+            updateCityListUI(currentState.cities);
+        }
+
+        function exportSurovyJSON() {
+            if (currentMapData.length === 0) { alert("Nejprve musíte vygenerovat terén!"); return; }
+            const exportObj = {
+                width: currentMapWidth,
+                height: currentMapHeight,
+                tileSize: TILE_SIZE, // Toto je velikost surového náhledu
+                tileKey: currentTileKey,
+                data: currentMapData,
+                cities: mapHistoryStack.length > 0 ? mapHistoryStack[mapHistoryStack.length - 1].cities : [] 
+            };
+            const jsonString = JSON.stringify(exportObj);
+            const blob = new Blob([jsonString], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "svet_mapa_SUROVA.json";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function exportSurovyPNG() {
+            if (currentMapData.length === 0) { alert("Nejprve musíte vygenerovat terén!"); return; }
+            const dataUrl = canvas.toDataURL('image/png');
+            const newWindow = window.open();
+            newWindow.document.write(`
+                <html style="background: #2c2c2c; margin: 0; padding: 0;">
+                <head><title>Náhled surové mapy</title></head>
+                <body style="margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh;">
+                    <img src="${dataUrl}" alt="Vygenerovaná mapa" style="image-rendering: pixelated; width: 90%; height: 90%; object-fit: contain;">
+                </body>
+                </html>
+            `);
+            newWindow.document.close();
+        }
+
+        // =================================================================
+        // 6. PROPOJENÍ GENERÁTORU A KONVERTORU (NOVÉ)
+        // =================================================================
+        
+        // --- Hlavní Funkce Konvertoru ---
+        function runConversion(surovaData) {
+            if (!surovaData) {
+                console.error("Konverze selhala: Chybí surová data.");
+                return null;
+            }
+            console.log("Spouštím konverzi surových dat...");
+            
+            const width = surovaData.width;
+            const height = surovaData.height;
+            const data = surovaData.data;
+            const newFinalMap = []; 
+
+            for (let y = 0; y < height; y++) {
+                const newRow = [];
+                for (let x = 0; x < width; x++) {
+                    const suroveID = data[y][x];
+                    let finalID = suroveID; 
+
+                    if (suroveID === ZEME_SUROVE) {
+                        const masky = calculateMask_pro_Zem(x, y, data, width, height);
+                        if (masky.hory > 0) finalID = mapMaskToTileID_Hory(masky.hory);
+                        else if (masky.voda > 0) finalID = mapMaskToTileID_Voda(masky.voda);
+                        else finalID = ID_PLNA_ZEM;
+                    } 
+                    else if (suroveID === CESTA_SUROVE) {
+                        const maska = calculateMask_pro_Overlay(x, y, data, width, height, CESTA_SUROVE);
+                        finalID = mapMaskToTileID_Cesta(maska);
+                    }
+                    else if (suroveID === MESTSKA_CESTA_SUROVE) {
+                        const maska_Vnitrni = calculateMask_Distance(x, y, data, width, height, PARK_SUROVE, 1);
+                        if (maska_Vnitrni > 0) {
+                            finalID = mapMaskToTileID_CestaVnitrni(maska_Vnitrni);
+                        } else {
+                            const maska_Vnejsi = calculateMask_Distance(x, y, data, width, height, PARK_SUROVE, 2);
+                            if (maska_Vnejsi > 0) {
+                                finalID = mapMaskToTileID_CestaVnejsi(maska_Vnejsi);
+                            } else {
+                                finalID = ID_PLNA_MESTSKA_CESTA; 
+                            }
+                        }
+                    }
+                    else if (suroveID === LES_SUROVE) {
+                        const maska = calculateMask_pro_Overlay(x, y, data, width, height, LES_SUROVE);
+                        finalID = mapMaskToTileID_Les(maska);
+                    }
+                    else if (suroveID === VODA_SUROVE) finalID = ID_PLNA_VODA;
+                    else if (suroveID === HORY_SUROVE) finalID = ID_PLNA_HORA;
+                    else if (suroveID === PARK_SUROVE) finalID = ID_PLNA_PARK;
+                    else if (BUDOUCI_OVERLAYE.includes(suroveID)) finalID = suroveID;
+
+                    newRow.push(finalID);
+                }
+                newFinalMap.push(newRow);
+            }
+            console.log("Konverze dokončena.");
+            return newFinalMap; 
+        }
+
+        // --- Export Finálního PNG ---
+        function exportFinalPNG() {
+            if (!finalMapData) {
+                alert("Nejprve musíte spustit 'Konvertovat a Vykreslit Finální Mapu'!");
+                return;
+            }
+            const dataUrl = finalRenderCanvas.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = "mapa_finalni.png";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            console.log("Finální PNG mapa exportována.");
+        }
+
+        // =================================================================
+        // 7. PŘIPOJENÍ EVENT LISTENERŮ
+        // =================================================================
+
+        // --- Listenery Generátoru ---
+        generateTerrainButton.addEventListener('click', generateTerrain);
+        addCityButton.addEventListener('click', addCity);
+        undoCityButton.addEventListener('click', undoCity); 
+        createRoadButton.addEventListener('click', createRoad); 
+        saveSettingsButton.addEventListener('click', saveSettings);
+        loadSettingsButton.addEventListener('click', loadSettings);
+        addResourceButton.addEventListener('click', () => createResourceRow('#FF0000', 0.8, 1.0));
+        
+        // Export Surových dat
+        exportSurovyJsonButton.addEventListener('click', exportSurovyJSON);
+        exportSurovyPngButton.addEventListener('click', exportSurovyPNG);
+        
+        // --- Listenery Konvertoru ---
+        tilesetFileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) { loadedTilesetImage = null; return; }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    loadedTilesetImage = img; 
+                    console.log("Tileset obrázek načten.");
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        runConversionButton.addEventListener('click', () => {
+            if (!loadedTilesetImage) {
+                alert("Nejprve nahraj Tileset obrázek!");
+                return;
+            }
+            if (currentMapData.length === 0) {
+                alert("Nejprve musíš vygenerovat terén (Tlačítko 1)!");
+                return;
+            }
+            
+            // 1. Spustíme konverzi
+            const surovaKopie = { 
+                width: currentMapWidth, 
+                height: currentMapHeight, 
+                data: currentMapData 
+            };
+            const GDevelopMapa = runConversion(surovaKopie);
+            
+            if (!GDevelopMapa) return; 
+
+            // 2. Uložíme data pro export
+            finalMapData = GDevelopMapa;
+            
+            // 3. Vykreslíme
+            const tileSize = parseInt(tileSizeInput.value);
+            const tilesetWidth = parseInt(tilesetWidthInput.value);
+            renderMap(finalMapData, loadedTilesetImage, finalRenderCanvas, tileSize, tilesetWidth);
+        });
+
+        // --- Listenery Finálního Exportu ---
+        exportFinalJsonButton.addEventListener('click', () => {
+            if (!finalMapData) {
+                alert("Nejprve musíte spustit 'Konvertovat a Vykreslit Finální Mapu'!");
+                return;
+            }
+            
+            const finalJsonData = {
+                width: finalMapData[0].length,
+                height: finalMapData.length,
+                data: finalMapData
+            };
+            
+            const jsonString = JSON.stringify(finalJsonData);
+            const blob = new Blob([jsonString], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a'); 
+            a.href = url;
+            a.download = "mapa_finalni_GDEVELOP.json";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            console.log("Finální JSON pro GDevelop exportován.");
+        });
+        
+        exportFinalPngButton.addEventListener('click', exportFinalPNG);
+
+        // --- Ostatní Listenery (UI) ---
+        waterLevelSlider.addEventListener('input', () => { waterValueSpan.textContent = waterLevelSlider.value; });
+        mountainLevelSlider.addEventListener('input', () => { mountainValueSpan.textContent = mountainLevelSlider.value; });
+        forestFrequencySlider.addEventListener('input', () => { forestFrequencyValueSpan.textContent = parseFloat(forestFrequencySlider.value).toFixed(2); });
+        forestSizeSlider.addEventListener('input', () => { forestSizeValueSpan.textContent = parseFloat(forestSizeSlider.value).toFixed(2); });
+        
+        cityStartXSlider.addEventListener('input', () => { cityStartXInput.value = cityStartXSlider.value; redrawMapWithMarker(); });
+        cityStartXInput.addEventListener('input', () => { cityStartXSlider.value = cityStartXInput.value; redrawMapWithMarker(); });
+        cityStartYSlider.addEventListener('input', () => { cityStartYInput.value = cityStartYSlider.value; redrawMapWithMarker(); });
+        cityStartYInput.addEventListener('input', () => { cityStartYSlider.value = cityStartYInput.value; redrawMapWithMarker(); });
+        
+        turnPenaltySlider.addEventListener('input', () => { turnPenaltyValue.textContent = parseFloat(turnPenaltySlider.value).toFixed(1); });
+
+        setRoadStartButton.addEventListener('click', () => {
+            roadStartPoint = { x: parseInt(cityStartXInput.value), y: parseInt(cityStartYInput.value) };
+            roadStartDisplay.value = `Start: [${roadStartPoint.x}, ${roadStartPoint.y}]`;
+        });
+        setRoadEndButton.addEventListener('click', () => {
+            roadEndPoint = { x: parseInt(cityStartXInput.value), y: parseInt(cityStartYInput.value) };
+            roadEndDisplay.value = `Konec: [${roadEndPoint.x}, ${roadEndPoint.y}]`;
+        });
+
+        // --- První spuštění ---
+        if (!loadSettings()) {
+            createResourceRow('#1C1C1C', 0.88, 1.0); // Uhlí
+            createResourceRow('#2980b9', 0.0, 0.12); // Železo
+        }
+        generateTerrain();
+
+    </script>
+</body>
+</html>
